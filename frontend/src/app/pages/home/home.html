@@ -1,0 +1,151 @@
+<section class="hero">
+  <div class="container-narrow">
+    <h1>Find professors at a Chinese university</h1>
+    <p class="lead">
+      Enter a university's official website and pick your fields. The agent finds the matching schools, reads their
+      official faculty directories, and lists each professor with their publicly listed email and profile link.
+    </p>
+  </div>
+</section>
+
+<div class="container-narrow">
+  <form class="card research-form" (submit)="$event.preventDefault(); start()" novalidate>
+    <div class="card-body">
+      <label class="form-label fw-semibold" for="url">University website URL</label>
+      <div class="input-group input-group-lg">
+        <span class="input-group-text"><i class="bi bi-globe2"></i></span>
+        <input
+          id="url"
+          class="form-control"
+          [class.is-invalid]="touched() && urlError()"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          placeholder="https://www.example.edu.cn"
+          [value]="url()"
+          (input)="url.set(value($event))"
+          (blur)="touched.set(true)"
+        />
+      </div>
+      @if (touched() && urlError()) {
+        <div class="invalid-feedback d-block">{{ urlError() }}</div>
+      }
+      <div class="form-text">Use the official domain (usually ending in <code>.edu.cn</code>). Chinese-only sites are supported.</div>
+
+      <div class="d-flex justify-content-between align-items-end mt-4 mb-2">
+        <div>
+          <span class="form-label fw-semibold mb-0">Research fields</span>
+          <span class="text-muted small ms-1">(used to choose which schools to search)</span>
+          <span class="text-muted small ms-2">{{ selectedCount() }} selected</span>
+        </div>
+        <div class="small">
+          <button type="button" class="btn btn-link btn-sm" (click)="selectAll(true)">All</button>
+          <button type="button" class="btn btn-link btn-sm" (click)="selectAll(false)">None</button>
+        </div>
+      </div>
+      <div class="chip-grid" role="group" aria-label="Research fields">
+        @for (f of fields(); track f.key) {
+          <button
+            type="button"
+            class="chip"
+            [class.on]="selected().has(f.label)"
+            [attr.aria-pressed]="selected().has(f.label)"
+            (click)="toggle(f.label)"
+          >
+            <i class="bi" [class.bi-check2]="selected().has(f.label)" [class.bi-plus]="!selected().has(f.label)"></i>
+            {{ f.label }}
+            @if (f.label_zh) {
+              <span class="chip-zh">{{ f.label_zh }}</span>
+            }
+          </button>
+        }
+        @for (c of customFields(); track c) {
+          <span class="chip on custom">
+            <i class="bi bi-star"></i>{{ c }}
+            <button type="button" class="chip-x" (click)="removeCustom(c)" [attr.aria-label]="'Remove ' + c">
+              <i class="bi bi-x"></i>
+            </button>
+          </span>
+        }
+      </div>
+
+      <label class="form-label fw-semibold mt-3" for="custom">Add custom fields</label>
+      <div class="input-group">
+        <input
+          id="custom"
+          class="form-control"
+          placeholder="e.g. Robotics, Quantum Computing, 区块链"
+          [value]="customInput()"
+          (input)="customInput.set(value($event))"
+          (keydown)="onCustomKey($event)"
+        />
+        <button type="button" class="btn btn-outline-primary" (click)="addCustom()" [disabled]="!customInput().trim()">
+          Add
+        </button>
+      </div>
+      <div class="form-text">Separate with commas. English and Chinese terms both work.</div>
+
+      <details class="mt-4 options">
+        <summary>Research options</summary>
+        <div class="row g-3 mt-1">
+          <div class="col-sm-6">
+            <label class="form-label small" for="maxp">Max professors</label>
+            <input id="maxp" type="number" min="5" max="150" class="form-control" [value]="maxProfessors()"
+                   (input)="maxProfessors.set(+value($event))" />
+          </div>
+          <div class="col-sm-6 d-flex align-items-end">
+            <div class="form-check">
+              <input id="fresh" type="checkbox" class="form-check-input" [checked]="forceRefresh()"
+                     (change)="forceRefresh.set(!forceRefresh())" />
+              <label class="form-check-label small" for="fresh">Force fresh crawl (ignore cache)</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      @if (error()) {
+        <div class="alert alert-danger mt-3 mb-0"><i class="bi bi-exclamation-triangle me-2"></i>{{ error() }}</div>
+      }
+    </div>
+    <div class="card-footer d-flex flex-wrap gap-3 align-items-center justify-content-between">
+      <span class="small text-muted">
+        @if (config(); as c) {
+          <i class="bi bi-cpu me-1"></i>{{ c.llm_enabled ? 'AI extraction: ' + c.llm_model : 'Heuristic mode (no LLM key)' }}
+        }
+      </span>
+      <button type="submit" class="btn btn-primary btn-lg px-4" [disabled]="submitting() || (touched() && !canSubmit())">
+        @if (submitting()) {
+          <span class="spinner-border spinner-border-sm me-2"></span>Starting…
+        } @else {
+          <i class="bi bi-search me-2"></i>Find professors
+        }
+      </button>
+    </div>
+  </form>
+
+  <div class="principles">
+    <div><i class="bi bi-shield-check"></i><strong>No guessing</strong><span>Emails and names come only from the professor's official page.</span></div>
+    <div><i class="bi bi-link-45deg"></i><strong>Profile links</strong><span>Every professor links to their official profile.</span></div>
+    <div><i class="bi bi-translate"></i><strong>Chinese pages</strong><span>Chinese pages are understood and shown in English, with the originals kept.</span></div>
+  </div>
+
+  @if (recent().length) {
+    <h2 class="section-title">Recent research</h2>
+    <div class="list-group recent-list">
+      @for (j of recent(); track j.id) {
+        <a class="list-group-item list-group-item-action" [routerLink]="['/research', j.id, j.status === 'completed' ? 'overview' : 'progress']">
+          <div class="d-flex justify-content-between gap-2">
+            <div class="text-truncate">
+              <strong>{{ j.university_name || j.university_url }}</strong>
+              <div class="small text-muted text-truncate">{{ j.fields.join(', ') }}</div>
+            </div>
+            <div class="text-end flex-shrink-0">
+              <app-status-badge [status]="j.status" />
+              <div class="small text-muted">{{ j.created_at | date: 'MMM d, HH:mm' }}</div>
+            </div>
+          </div>
+        </a>
+      }
+    </div>
+  }
+</div>

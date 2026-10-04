@@ -1,0 +1,26 @@
+<header class="topbar">
+  <div class="container-wide d-flex align-items-center gap-3">
+    <a class="brand" routerLink="/">
+      <span class="brand-mark" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
+      <span>
+        <span class="brand-name">Professor Finder</span>
+        <span class="brand-sub">China University Professor Research</span>
+      </span>
+    </a>
+    <nav class="ms-auto d-flex gap-1">
+      <a class="topnav" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><i class="bi bi-search"></i><span>New research</span></a>
+      <a class="topnav" routerLink="/settings" routerLinkActive="active"><i class="bi bi-gear"></i><span>Settings</span></a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <router-outlet />
+</main>
+
+<footer class="site-footer">
+  <div class="container-wide small">
+    Names and emails come only from the universities' official pages. Always check a professor's profile before
+    writing to them. © {{ year }}
+  </div>
+</footer>

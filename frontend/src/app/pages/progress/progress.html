@@ -1,0 +1,89 @@
+<div class="container-wide">
+  <app-job-nav [jobId]="jobId()" />
+
+  @if (job(); as j) {
+    <div class="page-head">
+      <div>
+        <h1>{{ j.university_name || j.university_url }}</h1>
+        <p class="text-muted mb-0">
+          <a [href]="j.university_url" target="_blank" rel="noopener">{{ j.university_url }}</a>
+          · {{ j.fields.length }} field{{ j.fields.length === 1 ? '' : 's' }}
+          · up to {{ j.options.max_professors ?? 40 }} professors
+        </p>
+      </div>
+      <app-status-badge [status]="j.status" />
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="fw-semibold">{{ j.current_step }}</span>
+          <span class="text-muted">{{ j.progress }}% · {{ elapsed(j) | number: '1.0-0' }}s</span>
+        </div>
+        <div class="progress" role="progressbar" [attr.aria-valuenow]="j.progress" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" [class.progress-bar-striped]="active(j)" [class.progress-bar-animated]="active(j)"
+               [class.bg-danger]="j.status === 'failed'" [style.width.%]="j.progress"></div>
+        </div>
+
+        <ol class="step-list">
+          @for (s of j.steps; track s.key) {
+            <li [class]="'step ' + s.status">
+              <span class="step-icon" aria-hidden="true">
+                @switch (s.status) {
+                  @case ('done') { <i class="bi bi-check-circle-fill"></i> }
+                  @case ('running') { <span class="spinner-grow spinner-grow-sm"></span> }
+                  @case ('failed') { <i class="bi bi-x-circle-fill"></i> }
+                  @case ('skipped') { <i class="bi bi-dash-circle"></i> }
+                  @default { <i class="bi bi-circle"></i> }
+                }
+              </span>
+              <div>
+                <div class="step-label">{{ s.label }}</div>
+                @if (s.message) {
+                  <div class="step-msg">{{ s.message }}</div>
+                }
+              </div>
+            </li>
+          }
+        </ol>
+      </div>
+      <div class="card-footer d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        @if (j.status === 'completed') {
+          <span class="text-success small"><i class="bi bi-check2-all me-1"></i>Research complete</span>
+          <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary" [routerLink]="['/research', j.id, 'overview']">Departments</a>
+            <a class="btn btn-primary" [routerLink]="['/research', j.id, 'professors']">View professors</a>
+          </div>
+        } @else if (j.status === 'failed') {
+          <span class="text-danger small"><i class="bi bi-exclamation-octagon me-1"></i>{{ j.error_message }}</span>
+          <a class="btn btn-outline-primary" routerLink="/">New research</a>
+        } @else if (j.status === 'cancelled') {
+          <span class="text-muted small">Research cancelled.</span>
+          <a class="btn btn-outline-primary" routerLink="/">New research</a>
+        } @else {
+          <span class="text-muted small">This can take a few minutes. We crawl politely, with delays between requests. You can leave this page and come back.</span>
+          <button class="btn btn-outline-danger btn-sm" (click)="cancel()" [disabled]="cancelling()">
+            {{ cancelling() ? 'Cancelling…' : 'Cancel' }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (j.warnings.length) {
+      <div class="card mt-3">
+        <div class="card-body">
+          <h2 class="h6"><i class="bi bi-info-circle me-1"></i>Notes &amp; limitations</h2>
+          <ul class="small mb-0 text-muted">
+            @for (w of j.warnings; track w) {
+              <li>{{ w }}</li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+  } @else if (error()) {
+    <div class="alert alert-danger mt-4">{{ error() }}</div>
+  } @else {
+    <div class="loading-block"><span class="spinner-border"></span></div>
+  }
+</div>

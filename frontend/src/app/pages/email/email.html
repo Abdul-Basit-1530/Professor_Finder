@@ -1,0 +1,105 @@
+<div class="container-wide">
+  @if (prof(); as p) {
+    <nav class="crumbs small">
+      <a [routerLink]="['/professors', p.id]"><i class="bi bi-arrow-left"></i> {{ p.name }}</a>
+    </nav>
+    <div class="page-head">
+      <div>
+        <h1>Supervision request email</h1>
+        <p class="text-muted mb-0">
+          To {{ p.name }}@if (p.name_chinese && p.name_chinese !== p.name) { ({{ p.name_chinese }})} ·
+          @if (p.email) {{{ p.email }}} @else {<span class="text-warning">no public email found</span>}
+        </p>
+      </div>
+      <app-status-badge [status]="p.verification_status" />
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <form class="card" (submit)="$event.preventDefault(); generate()">
+          <div class="card-body">
+            <h2 class="h6">About you</h2>
+            <label class="form-label small" for="sn">Your full name</label>
+            <input id="sn" class="form-control mb-2" [value]="form().student_name" (input)="patch('student_name', val($event))" />
+            <label class="form-label small" for="ri">Your research interest</label>
+            <input id="ri" class="form-control mb-2" placeholder="e.g. Natural Language Processing" [value]="form().research_interest" (input)="patch('research_interest', val($event))" />
+            <label class="form-label small" for="bg">Academic background</label>
+            <textarea id="bg" class="form-control mb-2" rows="6" placeholder="Degree, university, GPA, relevant courses, projects, publications, skills…"
+                      [value]="form().student_background" (input)="patch('student_background', val($event))"></textarea>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small" for="td">Target degree</label>
+                <select id="td" class="form-select" [value]="form().target_degree" (change)="patch('target_degree', val($event))">
+                  <option value="Master's">Master's</option>
+                  <option value="PhD">PhD</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small" for="tn">Tone</label>
+                <select id="tn" class="form-select" [value]="form().tone" (change)="patch('tone', $any(val($event)))">
+                  <option value="formal">Formal</option>
+                  <option value="warm">Warm</option>
+                  <option value="concise">Concise</option>
+                </select>
+              </div>
+            </div>
+            <label class="form-label small mt-2" for="xn">Anything else to mention (optional)</label>
+            <textarea id="xn" class="form-control" rows="2" [value]="form().extra_notes ?? ''" (input)="patch('extra_notes', val($event))"></textarea>
+            <p class="small text-muted mt-2 mb-0">
+              <i class="bi bi-shield-check"></i> The draft uses only this professor's verified name, position and
+              department. It makes no claims about their research. Read their
+              @if (p.profile_url) {<a [href]="p.profile_url" target="_blank" rel="noopener">profile</a>} @else {profile}
+              and add a sentence about their work before sending.
+            </p>
+          </div>
+          <div class="card-footer text-end">
+            <button class="btn btn-primary" type="submit" [disabled]="!valid() || generating()">
+              @if (generating()) {<span class="spinner-border spinner-border-sm me-2"></span>Generating…} @else {<i class="bi bi-magic me-1"></i>{{ draft() ? 'Regenerate' : 'Generate draft' }}}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="card h-100">
+          <div class="card-body d-flex flex-column">
+            @if (error()) {<div class="alert alert-danger">{{ error() }}</div>}
+            @if (draft(); as d) {
+              @for (w of d.warnings; track w) {
+                <div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ w }}</div>
+              }
+              <label class="form-label small" for="subj">Subject</label>
+              <input id="subj" class="form-control mb-2" [value]="subject()" (input)="subject.set(val($event))" />
+              <label class="form-label small" for="body">Body (editable)</label>
+              <textarea id="body" class="form-control flex-grow-1 email-body" rows="16" [value]="body()" (input)="body.set(val($event))"></textarea>
+              <div class="small text-muted mt-1">{{ d.generated_by === 'llm' ? 'AI-drafted from verified facts' : 'Template draft from verified facts' }}. Nothing is sent automatically.</div>
+              <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" id="rev" [checked]="reviewed()" (change)="reviewed.set(!reviewed())" />
+                <label class="form-check-label small" for="rev">I have read and edited this email, and checked every claim in it.</label>
+              </div>
+              <div class="d-flex gap-2 mt-2 flex-wrap">
+                <button class="btn btn-outline-primary" (click)="copy()" [disabled]="!reviewed()">
+                  <i class="bi" [class.bi-clipboard]="!copied()" [class.bi-clipboard-check]="copied()"></i> {{ copied() ? 'Copied' : 'Copy email' }}
+                </button>
+                @if (mailto(); as m) {
+                  <a class="btn btn-outline-secondary" [class.disabled]="!reviewed()" [attr.aria-disabled]="!reviewed()" [href]="reviewed() ? m : null">
+                    <i class="bi bi-envelope"></i> Open in my mail app
+                  </a>
+                }
+              </div>
+            } @else {
+              <div class="empty-state my-auto">
+                <i class="bi bi-envelope-paper"></i>
+                <p>Fill in your details and generate a draft. You'll review and edit it before it goes anywhere.</p>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  } @else if (error()) {
+    <div class="alert alert-danger mt-4">{{ error() }}</div>
+  } @else {
+    <div class="loading-block"><span class="spinner-border"></span></div>
+  }
+</div>

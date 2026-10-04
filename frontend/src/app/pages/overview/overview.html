@@ -1,0 +1,72 @@
+<div class="container-wide">
+  <app-job-nav [jobId]="jobId()" />
+
+  @if (loading()) {
+    <div class="loading-block"><span class="spinner-border"></span></div>
+  } @else if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  } @else if (!uni()) {
+    <div class="empty-state">
+      <i class="bi bi-hourglass-split"></i>
+      <p>University information is not available yet.</p>
+      <a class="btn btn-outline-primary" [routerLink]="['/research', jobId(), 'progress']">View progress</a>
+    </div>
+  } @else {
+    @let u = uni()!;
+    <div class="page-head">
+      <div>
+        <h1>{{ u.name }} @if (u.name_chinese && u.name_chinese !== u.name) {<span class="zh">{{ u.name_chinese }}</span>}</h1>
+        <p class="text-muted mb-0">
+          <i class="bi bi-geo-alt"></i> {{ u.location || 'Location not found' }} · {{ u.country || 'Country not found' }} ·
+          <a [href]="u.official_url" target="_blank" rel="noopener">{{ u.domain }}</a>
+        </p>
+      </div>
+      <app-status-badge [status]="u.verification_status" />
+    </div>
+
+    @if (job()?.status === 'running' || job()?.status === 'queued') {
+      <div class="alert alert-info small"><span class="spinner-border spinner-border-sm me-2"></span>Research still in progress; results below are partial.</div>
+    }
+
+    <div class="stat-row">
+      <div class="card stat"><div class="card-body"><span class="stat-num">{{ departments().length }}</span><span class="stat-label">Relevant schools / departments</span></div></div>
+      <div class="card stat"><div class="card-body"><span class="stat-num">{{ stat('professors') }}</span><span class="stat-label">Professors found</span></div></div>
+      <div class="card stat"><div class="card-body d-flex align-items-center justify-content-between gap-2">
+        <span class="stat-label">See every professor with their email and profile link</span>
+        <a class="btn btn-primary" [routerLink]="['/research', jobId(), 'professors']">Professors <i class="bi bi-arrow-right"></i></a>
+      </div></div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body">
+        <h2 class="h5">Relevant schools &amp; departments</h2>
+        @if (departments().length) {
+          <div class="dept-grid">
+            @for (d of departments(); track d.id) {
+              <div class="dept">
+                <div class="d-flex justify-content-between gap-2">
+                  <strong>{{ d.name }}</strong>
+                  <app-status-badge [status]="d.verification_status" />
+                </div>
+                @if (d.name_chinese && d.name_chinese !== d.name) {<div class="zh small">{{ d.name_chinese }}</div>}
+                <div class="mt-1">@for (f of d.matched_fields; track f) {<span class="tag">{{ f }}</span>}</div>
+                <div class="small mt-2 d-flex gap-3 flex-wrap">
+                  @if (d.url) {<a [href]="d.url" target="_blank" rel="noopener"><i class="bi bi-house"></i> Website</a>}
+                  @for (f of d.faculty_list_urls.slice(0, 2); track f; let i = $index) {<a [href]="f" target="_blank" rel="noopener"><i class="bi bi-people"></i> Faculty list{{ i ? ' ' + (i + 1) : '' }}</a>}
+                  <a [routerLink]="['/research', jobId(), 'professors']" [queryParams]="{ department: d.name }"><i class="bi bi-arrow-right"></i> Professors</a>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-muted mb-0">No relevant departments identified.</p>
+        }
+      </div>
+    </div>
+
+    <div class="card mt-3"><div class="card-body">
+      <h2 class="h6">University sources</h2>
+      <app-source-list [sources]="u.sources" />
+    </div></div>
+  }
+</div>

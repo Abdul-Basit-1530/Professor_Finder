@@ -1,0 +1,158 @@
+<div class="container-wide">
+  <app-job-nav [jobId]="jobId()" />
+
+  @if (loading()) {
+    <div class="loading-block"><span class="spinner-border"></span></div>
+  } @else if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  } @else {
+    <div class="page-head">
+      <div>
+        <h1>Professors &amp; researchers</h1>
+        <p class="text-muted mb-0">
+          {{ stats().total }} found · {{ stats().withEmail }} with a public email · {{ stats().verified }} fully verified
+        </p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-primary btn-sm" (click)="copyAllEmails()" [disabled]="!stats().withEmail">
+          <i class="bi" [class.bi-envelope-paper]="!copiedAll()" [class.bi-clipboard-check]="copiedAll()"></i>
+          {{ copiedAll() ? 'Copied' : 'Copy all emails' }}
+        </button>
+        <div class="btn-group" role="group" aria-label="View">
+          <button class="btn btn-outline-secondary btn-sm" [class.active]="view() === 'cards'" (click)="view.set('cards')"><i class="bi bi-grid"></i> Cards</button>
+          <button class="btn btn-outline-secondary btn-sm" [class.active]="view() === 'table'" (click)="view.set('table')"><i class="bi bi-table"></i> Table</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-bar card">
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label small" for="q">Search</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input id="q" class="form-control" placeholder="Name, email or department (English / 中文)" [value]="q()" (input)="q.set(val($event))" />
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small" for="fd">Department</label>
+            <select id="fd" class="form-select form-select-sm" [value]="dept()" (change)="dept.set(val($event))">
+              <option value="">All departments</option>
+              @for (d of deptOptions(); track d) {<option [value]="d">{{ d }}</option>}
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label small" for="fs">Verification</label>
+            <select id="fs" class="form-select form-select-sm" [value]="status()" (change)="status.set(val($event))">
+              <option value="">Any status</option>
+              <option value="VERIFIED">Verified</option>
+              <option value="PARTIALLY VERIFIED">Partially verified</option>
+              <option value="NOT VERIFIED">Not verified</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label small" for="so">Sort by</label>
+            <select id="so" class="form-select form-select-sm" [value]="sort()" (change)="sort.set($any(val($event)))">
+              <option value="default">Email first</option>
+              <option value="name">Name</option>
+              <option value="department">Department</option>
+            </select>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-3 mt-2 small align-items-center">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="he" [checked]="hasEmail()" (change)="hasEmail.set(!hasEmail())" />
+            <label class="form-check-label" for="he">Only with email</label>
+          </div>
+          <span class="text-muted ms-auto">Showing {{ filtered().length }} of {{ all().length }}</span>
+          @if (activeFilters()) {
+            <button class="btn btn-link btn-sm p-0" (click)="reset()">Clear filters</button>
+          }
+        </div>
+      </div>
+    </div>
+
+    @if (!filtered().length) {
+      <div class="empty-state">
+        <i class="bi bi-person-x"></i>
+        <p>{{ all().length ? 'No professors match these filters.' : 'No professors were found on the department websites.' }}</p>
+      </div>
+    } @else if (view() === 'cards') {
+      <div class="prof-grid">
+        @for (p of filtered(); track p.id) {
+          <article class="card prof-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between gap-2">
+                <div class="min-w-0">
+                  <h2 class="prof-name">
+                    <a [routerLink]="['/professors', p.id]">{{ p.name }}</a>
+                    @if (p.name_chinese && p.name_chinese !== p.name) {<span class="zh">{{ p.name_chinese }}</span>}
+                  </h2>
+                  <div class="small text-muted text-truncate">{{ p.position || 'Position not found' }} · {{ p.department_name || '—' }}</div>
+                </div>
+                <app-status-badge [status]="p.verification_status" />
+              </div>
+
+              <div class="email-row">
+                @if (p.email) {
+                  <i class="bi bi-envelope-check text-success"></i>
+                  <a [href]="'mailto:' + p.email">{{ p.email }}</a>
+                  <button class="btn btn-sm btn-link p-0" (click)="copy(p)" [title]="'Copy ' + p.email">
+                    <i class="bi" [class.bi-clipboard]="copied() !== p.id" [class.bi-clipboard-check]="copied() === p.id"></i>
+                  </button>
+                } @else {
+                  <i class="bi bi-envelope-slash text-muted"></i><span class="text-muted">Not publicly listed</span>
+                }
+              </div>
+              <div class="profile-row small">
+                <i class="bi bi-person-badge"></i>
+                @if (p.profile_url) {
+                  <a [href]="p.profile_url" target="_blank" rel="noopener">{{ p.profile_url }}</a>
+                } @else {
+                  <span class="text-muted">Profile not found</span>
+                }
+              </div>
+            </div>
+            <div class="card-footer d-flex gap-2 flex-wrap">
+              @if (p.profile_url) {
+                <a class="btn btn-sm btn-primary" [href]="p.profile_url" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Open profile</a>
+              }
+              <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/professors', p.id]">Details</a>
+              <a class="btn btn-sm btn-outline-secondary ms-auto" [routerLink]="['/professors', p.id, 'email']"><i class="bi bi-pencil-square"></i> Draft email</a>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle mb-0 data-table">
+            <thead>
+              <tr><th>Professor</th><th>Position</th><th>Department</th><th>Email</th><th>Profile</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              @for (p of filtered(); track p.id) {
+                <tr>
+                  <td><a [routerLink]="['/professors', p.id]"><strong>{{ p.name }}</strong></a>
+                    @if (p.name_chinese && p.name_chinese !== p.name) {<div class="zh small ms-0">{{ p.name_chinese }}</div>}</td>
+                  <td class="small">{{ p.position || '—' }}</td>
+                  <td class="small">{{ p.department_name }}</td>
+                  <td class="small text-nowrap">
+                    @if (p.email) {
+                      {{ p.email }} <button class="btn btn-sm btn-link p-0" (click)="copy(p)" title="Copy"><i class="bi" [class.bi-clipboard]="copied() !== p.id" [class.bi-clipboard-check]="copied() === p.id"></i></button>
+                    } @else {<span class="text-muted">Not publicly listed</span>}
+                  </td>
+                  <td class="small">
+                    @if (p.profile_url) {<a [href]="p.profile_url" target="_blank" rel="noopener">Open <i class="bi bi-box-arrow-up-right"></i></a>} @else {—}
+                  </td>
+                  <td><app-status-badge [status]="p.verification_status" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>

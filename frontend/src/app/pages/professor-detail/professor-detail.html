@@ -1,0 +1,84 @@
+<div class="container-wide">
+  @if (prof(); as p) {
+    <nav class="crumbs small">
+      <a [routerLink]="['/research', p.job_id, 'professors']"><i class="bi bi-arrow-left"></i> All professors</a>
+    </nav>
+    <div class="page-head">
+      <div>
+        <h1>{{ p.name }} @if (p.name_chinese && p.name_chinese !== p.name) {<span class="zh">{{ p.name_chinese }}</span>}</h1>
+        <p class="text-muted mb-0">
+          {{ p.position || 'Position not found' }}@if (p.position_original) { ({{ p.position_original }})}
+          · {{ p.department_name || 'Department not found' }}
+          @if (p.university_name) { · {{ p.university_name }} }
+        </p>
+        @if (p.name_is_romanized) {
+          <p class="small text-muted mb-0"><i class="bi bi-info-circle"></i> English name romanised from the Chinese name; not stated on the profile.</p>
+        }
+      </div>
+      <div class="d-flex flex-column align-items-end gap-2">
+        <app-status-badge [status]="p.verification_status" />
+        <a class="btn btn-primary btn-sm" [routerLink]="['/professors', p.id, 'email']"><i class="bi bi-pencil-square"></i> Draft supervision email</a>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-body">
+            <dl class="kv mb-0">
+              <dt>Email</dt>
+              <dd>
+                @if (p.email) {
+                  <a [href]="'mailto:' + p.email">{{ p.email }}</a>
+                  <button class="btn btn-sm btn-link py-0" (click)="copyEmail(p.email)"><i class="bi" [class.bi-clipboard]="!copied()" [class.bi-clipboard-check]="copied()"></i> {{ copied() ? 'Copied' : 'Copy' }}</button>
+                  <app-status-badge [status]="p.email_status" />
+                } @else {
+                  <span class="text-muted">Not publicly listed</span> <app-status-badge status="NOT FOUND" />
+                }
+              </dd>
+              <dt>Profile</dt>
+              <dd>
+                @if (p.profile_url) {
+                  <a [href]="p.profile_url" target="_blank" rel="noopener">{{ p.profile_url }} <i class="bi bi-box-arrow-up-right"></i></a>
+                } @else {Not found}
+              </dd>
+              <dt>Department</dt><dd>{{ p.department_name || 'Not found' }}</dd>
+              <dt>Position</dt><dd>{{ p.position || 'Not found' }}@if (p.position_original) { ({{ p.position_original }})}</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="card mt-3">
+          <div class="card-body">
+            <h2 class="h6">Sources</h2>
+            <app-source-list [sources]="p.sources" />
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h6">Verification checks</h2>
+            <ul class="check-list">
+              @for (c of checks(p); track c.key) {
+                <li [class.ok]="c.ok"><i class="bi" [class.bi-check-circle-fill]="c.ok" [class.bi-dash-circle]="!c.ok"></i>{{ c.label }}</li>
+              }
+            </ul>
+          </div>
+        </div>
+        @if (p.notes.length) {
+          <div class="card mt-3">
+            <div class="card-body">
+              <h2 class="h6">Notes</h2>
+              <ul class="small text-muted mb-0">@for (n of p.notes; track n) {<li>{{ n }}</li>}</ul>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  } @else if (error()) {
+    <div class="alert alert-danger mt-4">{{ error() }}</div>
+  } @else {
+    <div class="loading-block"><span class="spinner-border"></span></div>
+  }
+</div>

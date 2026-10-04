@@ -1,0 +1,46 @@
+# Full stack locally: PostgreSQL + FastAPI (with Playwright) + Angular/nginx.
+#   cp .env.example .env   # add OPENAI_API_KEY etc.
+#   docker compose up --build
+#   open http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: research
+      POSTGRES_PASSWORD: research
+      POSTGRES_DB: research_agent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U research -d research_agent"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        INSTALL_PLAYWRIGHT: "true"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://research:research@db:5432/research_agent
+      AUTO_CREATE_TABLES: "false"   # Alembic migrations run on start
+      PLAYWRIGHT_ENABLED: "true"
+      CORS_ORIGINS: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
