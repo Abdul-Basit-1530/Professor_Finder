@@ -1,16 +1,19 @@
 # Frontend
 
+This Angular app is deployed from the `frontend` directory on Vercel. It uses an in-memory browser UI and the small
+`api/fetch.ts` Vercel function to read official academic pages; no Render service or database is needed.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.24.
 
-## Development server
+## Local development
 
-To start a local development server, run:
+Use Vercel CLI so the `/api/fetch` function is available during local scans:
 
 ```bash
-ng serve
+npx vercel dev
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+`ng serve` can display the Angular UI, but it does not run the Vercel fetch function.
 
 ## Code scaffolding
 

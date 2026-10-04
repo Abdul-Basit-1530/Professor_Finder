@@ -1,9 +1,46 @@
-# China University Professor Research Agent ("Professor Finder")
+# Professor Finder
 
-Discover professors at Chinese universities by research field. Find official faculty profiles, verify publicly listed
-institutional emails, and filter or export results. Emails are never guessed.
+Extract publicly listed faculty emails from Chinese university pages. The deployed app is a Vercel frontend with a
+small, stateless Vercel fetch function; it does not require the Render service or PostgreSQL database.
 
-Provide an official university website and your research fields. The app then:
+Enter an official university URL to scan its homepage, likely faculty directories, and a limited number of professor
+profiles, or paste page content when a site cannot be fetched. Copy results or download them as CSV. Results are held
+in browser memory only and disappear when the tab is closed or reloaded.
+
+> The `backend/` directory and the sections below describing its API/database are retained as legacy code and are not
+> used by the frontend-only Vercel deployment. The fetch function at `frontend/api/fetch.ts` is deployed with Vercel;
+> it fetches allow-listed academic sites and stores no results.
+
+## Current deployment
+
+Import this repository into Vercel with **Root Directory** set to `frontend`. The build command and output directory
+are defined in `frontend/vercel.json`. No Render URL, database URL, or access-token environment variable is needed.
+
+The Vercel function accepts academic domains listed in `frontend/api/fetch.ts`. It checks redirect destinations,
+limits response size and request time, and does not bypass CAPTCHA or anti-bot protection. It does not render
+JavaScript. If a page cannot be fetched, paste its HTML or text into the app.
+
+## Local development
+
+```bash
+cd frontend
+npm install
+npx vercel dev
+```
+
+The Vercel CLI is needed locally to run the `/api/fetch` function alongside the Angular app. `ng serve` alone can
+display the UI but cannot perform URL-based scans.
+
+## Legacy backend reference
+
+The Python service below is retained for reference, but it is not part of the current Vercel deployment.
+
+---
+
+The former full-stack deployment identified the university, matched research departments, and followed official
+faculty directories. Its core principle remains: email addresses must appear in page content and are never guessed.
+
+The legacy full-stack workflow:
 
 1. identifies the university (English and Chinese name, location),
 2. finds the **schools and departments that match your fields** (e.g. 计算机学院 for Computer Science / AI),
@@ -24,21 +61,14 @@ editable supervision-request email.
 
 ## Contents
 
-1. [Architecture](#architecture)
-2. [Workflow](#workflow)
-3. [Tech stack](#tech-stack)
-4. [Quick start (local)](#quick-start-local)
-5. [Environment variables](#environment-variables)
-6. [Database](#database)
-7. [Running tests](#running-tests)
-8. [Deployment](#deployment)
-9. [API](#api)
-10. [Verification rules](#verification-rules)
-11. [Limitations & responsible use](#limitations--responsible-use)
+1. [Current deployment](#current-deployment)
+2. [Local development](#local-development)
+3. [Legacy full-stack reference](#legacy-backend-reference)
+4. [Current limitations](#current-limitations)
 
 ---
 
-## Architecture
+## Legacy architecture
 
 ```
 ┌────────────────────┐   /api (same origin via proxy)   ┌──────────────────────────────────────────┐
@@ -66,7 +96,7 @@ editable supervision-request email.
 | **Heuristics first, LLM optional** | Deterministic parsers (Chinese name detection, email regex including `name#domain` forms, bilingual department matching) do the work. An LLM only helps pick links or read awkward pages, and is grounding-checked. |
 | **Same-origin `/api`** | The frontend contains no backend URL and no secrets. |
 
-## Workflow
+## Legacy workflow
 
 ```
 Enter URL + fields ─▶ University ─▶ Relevant departments ─▶ Faculty directories ─▶ Profiles ─▶ Verify ─▶ List
@@ -82,7 +112,7 @@ Enter URL + fields ─▶ University ─▶ Relevant departments ─▶ Faculty 
 
 **Chinese names:** names are romanised with pinyin ("张伟" → "Zhang Wei"). Characters with genuinely ambiguous readings (e.g. 曾 Zeng/Ceng) keep the Chinese name only, and English names written on the page always win.
 
-## Tech stack
+## Legacy stack
 
 - **Frontend:** Angular 21 (standalone components, signals), TypeScript, RxJS, Bootstrap 5, Vitest
 - **Backend:** Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, httpx, BeautifulSoup + lxml, Playwright, pypinyin, openpyxl, ReportLab
@@ -90,7 +120,7 @@ Enter URL + fields ─▶ University ─▶ Relevant departments ─▶ Faculty 
 - **Data:** PostgreSQL (SQLite for local development and tests)
 - **Deploy:** Docker, docker-compose, Render blueprint, Vercel config, GitHub Actions CI
 
-## Quick start (local)
+## Legacy full-stack quick start
 
 Prerequisites: Python 3.12+, Node.js 22+ (or 24.15+).
 
@@ -120,7 +150,7 @@ cp .env.example .env
 docker compose up --build            # http://localhost:8080
 ```
 
-## Environment variables
+## Legacy backend environment variables
 
 All secrets stay server-side. See [`.env.example`](.env.example) for every option.
 
@@ -142,7 +172,7 @@ All secrets stay server-side. See [`.env.example`](.env.example) for every optio
 | `APP_ACCESS_TOKEN` | — | Optional shared token required on `/api/*` (entered under Settings) |
 | `MAX_JOBS_PER_HOUR_PER_IP` / `MAX_CONCURRENT_JOBS` | `20` / `2` | Abuse protection / parallel jobs |
 
-## Database
+## Legacy database
 
 Tables: `universities`, `research_jobs`, `departments`, `professors`, `sources`, `research_results`, `page_cache`,
 `email_drafts`. Each job is a snapshot. `sources` records every page a record came from (URL, type, title,
@@ -154,7 +184,7 @@ alembic upgrade head                           # create/upgrade schema (PostgreS
 alembic revision --autogenerate -m "change"    # after editing app/models.py
 ```
 
-## Running tests
+## Legacy full-stack tests
 
 ```bash
 cd backend && pytest -q                       # 72 tests, fully offline
@@ -172,18 +202,12 @@ name romanisation and a robots.txt-blocked path. The tests check that:
 - unneeded pages are never crawled
 - exports, every API endpoint, access-token auth and rate limiting work
 
-## Deployment
+## Legacy full-stack deployment
 
-**Render (backend + PostgreSQL):** push to GitHub → Render → *New Blueprint* → pick the repo
-([`render.yaml`](render.yaml)). Set `CORS_ORIGINS` to your frontend URL. To enable JavaScript rendering, add
-`INSTALL_PLAYWRIGHT=true` (used as a Docker build arg) and set `PLAYWRIGHT_ENABLED=true`.
+These instructions apply only if you intentionally restore the old Python service. They are not needed to deploy the
+current frontend and Vercel fetch function. The legacy deployment used Render, PostgreSQL, or a single VPS.
 
-**Vercel (frontend):** import the repo with root directory `frontend`. In [`frontend/vercel.json`](frontend/vercel.json)
-replace `YOUR-BACKEND.onrender.com` with your backend host.
-
-**Single VPS:** `docker compose up -d --build` and put a TLS proxy (Caddy/Traefik) in front.
-
-## API
+## Legacy API
 
 Interactive docs at `/docs`.
 
@@ -202,7 +226,7 @@ Interactive docs at `/docs`.
 | `POST` | `/api/professors/{id}/generate-email` | Editable draft (never sent) |
 | `GET` | `/api/health`, `/api/meta/config` | Health and public config |
 
-## Verification rules
+## Legacy verification rules
 
 | Status | Meaning |
 |---|---|
@@ -210,10 +234,10 @@ Interactive docs at `/docs`.
 | **PARTIALLY VERIFIED** | Official profile found, but no institutional email is published on it |
 | **NOT VERIFIED** | The profile page could not be loaded, or isn't on the official domain |
 
-## Limitations & responsible use
+## Current limitations
 
-- Some Chinese university sites protect pages with **anti-bot checks that reject automated browsers**. The app never tries to evade them; it lists those pages by name so you can open them yourself.
-- Emails shown only as images can't be read and are reported as "Not publicly listed".
-- Without an OpenAI key, the app relies on heuristics, which work well on conventional faculty directories.
-- Crawling is deliberately polite: it follows robots.txt, adds per-host delays, has a page budget and caches pages. Please keep it that way.
-- Always open a professor's profile before writing to them. Email drafts are never sent automatically.
+- URL scanning is restricted to the academic host suffixes allow-listed in `frontend/api/fetch.ts`.
+- The scanner follows `robots.txt`, limits request pace and page counts, and does not bypass CAPTCHA or anti-bot checks.
+- It cannot render JavaScript-only pages or read addresses embedded only in images; paste the page text/HTML when available.
+- Results are not saved by the app. Reloading or closing the tab clears the in-memory list; CSV download is local to your browser.
+- Confirm every address and profile on the source page before contacting anyone.
