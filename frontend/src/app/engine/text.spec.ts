@@ -68,6 +68,11 @@ describe('emails', () => {
     expect(extractEmails(t)).toEqual(['zhangwei@ustc.edu.cn', 'li@pku.edu.cn', 'wang@zju.edu.cn']);
   });
 
+  it('normalizes explicit obfuscation in mailto links', () => {
+    expect(extractEmails('', ['wang [at] example.edu.cn', 'li%20%5Bat%5D%20example.edu.cn']))
+      .toEqual(['wang@example.edu.cn', 'li@example.edu.cn']);
+  });
+
   it('never invents an email from prose', () => {
     expect(extractEmails('He works at cs.ustc.edu.cn and studies C# programming.')).toEqual([]);
     expect(extractEmails('see page.html#section.top')).toEqual([]);

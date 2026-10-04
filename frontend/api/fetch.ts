@@ -50,7 +50,7 @@ function json(status: number, error: string): Response {
   });
 }
 
-export async function GET(request: Request): Promise<Response> {
+async function getPage(request: Request): Promise<Response> {
   const target = new URL(request.url).searchParams.get('url') ?? '';
   let current = target;
   const problem = checkUrl(current);
@@ -106,3 +106,5 @@ export async function GET(request: Request): Promise<Response> {
     clearTimeout(timer);
   }
 }
+
+export default { fetch: getPage };
