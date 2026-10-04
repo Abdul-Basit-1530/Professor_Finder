@@ -1,7 +1,9 @@
 # China University Professor Research Agent ("Professor Finder")
 
-A web application that helps students find supervisors at Chinese universities (for example, for a Chinese
-Government Scholarship application). You give it an official university website and your research fields. It then:
+Discover professors at Chinese universities by research field. Find official faculty profiles, verify publicly listed
+institutional emails, and filter or export results. Emails are never guessed.
+
+Provide an official university website and your research fields. The app then:
 
 1. identifies the university (English and Chinese name, location),
 2. finds the **schools and departments that match your fields** (e.g. 计算机学院 for Computer Science / AI),
