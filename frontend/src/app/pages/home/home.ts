@@ -1,194 +1,137 @@
-import { Component, computed, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 
-import { LocalExtractor, SourceLink } from '../../core/local-extractor';
-import type { ProfessorInfo } from '../../engine/types';
+import { ApiService, apiError } from '../../core/api.service';
+import { FieldOption, Job, PublicConfig } from '../../core/models';
+import { StatusBadge } from '../../shared/ui';
 
-interface DisplayContact {
-  name: string;
-  position: string | null;
-  department: string | null;
-  email: string | null;
-  emailVerified: boolean;
-  verification: string;
-  context: string;
-  profileUrl: string | null;
-  pageTitle: string;
-  sourceUrl: string;
-}
-
-const FACULTY_LINK = /faculty|professor|teacher|staff|people|team|师资|教师|教授|导师|人才/i;
+const FALLBACK_FIELDS: FieldOption[] = [
+  ['Computer Science', '计算机科学'], ['Artificial Intelligence', '人工智能'], ['Machine Learning', '机器学习'],
+  ['Information Technology', '信息技术'], ['Software Engineering', '软件工程'], ['Data Science', '数据科学'],
+  ['Computer Engineering', '计算机工程'], ['Computer Networks', '计算机网络'], ['Cybersecurity', '网络安全'],
+  ['Internet of Things', '物联网'], ['Cloud Computing', '云计算'], ['Distributed Systems', '分布式系统'],
+  ['Natural Language Processing', '自然语言处理'], ['Computer Vision', '计算机视觉'],
+].map(([label, zh]) => ({ key: label, label, label_zh: zh, custom: false }));
 
 @Component({
   selector: 'app-home',
+  imports: [RouterLink, DatePipe, StatusBadge],
   templateUrl: './home.html',
 })
-export class Home {
-  private extractor = new LocalExtractor();
+export class Home implements OnInit {
+  private api = inject(ApiService);
+  private router = inject(Router);
 
+  config = signal<PublicConfig | null>(null);
+  fields = signal<FieldOption[]>(FALLBACK_FIELDS);
+  selected = signal<Set<string>>(new Set(FALLBACK_FIELDS.map((f) => f.label)));
+  customFields = signal<string[]>([]);
   url = signal('');
-  pastedContent = signal('');
-  contacts = signal<DisplayContact[]>([]);
-  pageLinks = signal<SourceLink[]>([]);
-  scannedPages = signal<SourceLink[]>([]);
-  warnings = signal<string[]>([]);
-  pagesFetched = signal(0);
-  busy = signal(false);
-  touched = signal(false);
+  customInput = signal('');
+  maxProfessors = signal(40);
+  forceRefresh = signal(false);
+  submitting = signal(false);
   error = signal<string | null>(null);
-  notice = signal('');
-  clipboardStatus = signal('');
+  touched = signal(false);
+  recent = signal<Job[]>([]);
 
   urlError = computed(() => {
-    if (!this.url().trim()) return 'Enter the URL of the official page.';
+    const v = this.url().trim();
+    if (!v) return 'Enter the university website URL.';
+    const candidate = /^https?:\/\//i.test(v) ? v : `https://${v}`;
     try {
-      this.extractor.normalizeUrl(this.url());
+      const u = new URL(candidate);
+      if (!u.hostname.includes('.')) return 'That does not look like a website address.';
+      if (/^(localhost|\d+\.\d+\.\d+\.\d+)$/.test(u.hostname)) return 'Use the university domain name.';
       return null;
     } catch {
-      return 'Enter a valid HTTP or HTTPS page URL.';
+      return 'That does not look like a valid URL.';
     }
   });
-  relevantLinks = computed(() => this.pageLinks().filter((link) => FACULTY_LINK.test(`${link.label} ${link.url}`)).slice(0, 30));
-  canExtract = computed(() => !this.busy() && !this.urlError());
+  selectedCount = computed(() => this.selected().size + this.customFields().length);
+  canSubmit = computed(() => !this.urlError() && this.selectedCount() > 0 && !this.submitting());
 
-  async extract(): Promise<void> {
-    this.touched.set(true);
-    if (!this.canExtract()) return;
-
-    this.busy.set(true);
-    this.error.set(null);
-    this.notice.set('');
-    this.clipboardStatus.set('');
-
-    try {
-      const sourceUrl = this.extractor.normalizeUrl(this.url());
-      const pasted = this.pastedContent().trim();
-      const result = pasted ? null : await this.extractor.scanSite(sourceUrl, (message) => this.notice.set(message));
-      if (result?.error) throw new Error(result.error);
-      const pastedScan = pasted ? await this.extractor.parse(pasted, sourceUrl) : null;
-      const additions: DisplayContact[] = result
-        ? result.professors.map((professor) => this.toContact(professor))
-        : (pastedScan?.contacts ?? []).map((contact) => ({
-            name: 'Name not identified', position: null, department: null, email: contact.email, emailVerified: false,
-            verification: 'UNVERIFIED', context: contact.context, profileUrl: contact.profileUrl,
-            pageTitle: pastedScan!.title, sourceUrl: pastedScan!.sourceUrl,
-          }));
-      const scanned = result
-        ? this.resultPages(result, sourceUrl)
-        : [{ label: pastedScan!.title, url: pastedScan!.sourceUrl }];
-      const discoveredLinks = result
-        ? result.departments.flatMap((department) => department.facultyListUrls.map((url) => ({ label: department.name, url })))
-        : (pastedScan?.links ?? []);
-
-      this.contacts.update((current) => {
-        const keyFor = (contact: DisplayContact) => contact.email ?? contact.profileUrl ?? `${contact.name}|${contact.department}`;
-        const byEmail = new Map(current.map((contact) => [keyFor(contact), contact]));
-        for (const contact of additions) {
-          const key = keyFor(contact);
-          const existing = byEmail.get(key);
-          byEmail.set(key, existing
-            ? { ...existing, context: existing.context || contact.context, profileUrl: existing.profileUrl || contact.profileUrl }
-            : contact);
+  ngOnInit(): void {
+    this.api.config().subscribe({
+      next: (cfg) => {
+        this.config.set(cfg);
+        if (cfg.default_fields?.length) {
+          this.fields.set(cfg.default_fields);
+          this.selected.set(new Set(cfg.default_fields.map((f) => f.label)));
         }
-        return [...byEmail.values()];
-      });
-      this.pageLinks.update((current) => {
-        const byUrl = new Map(current.map((link) => [link.url, link]));
-        for (const link of discoveredLinks) byUrl.set(link.url, link);
-        return [...byUrl.values()];
-      });
-      this.scannedPages.update((current) => {
-        const byUrl = new Map(current.map((page) => [page.url, page]));
-        for (const page of scanned) byUrl.set(page.url, page);
-        return [...byUrl.values()];
-      });
-      this.warnings.set(result?.warnings ?? []);
-      this.pagesFetched.set(result?.pagesFetched ?? 1);
-      this.notice.set(`${this.contacts().length} faculty entr${this.contacts().length === 1 ? 'y' : 'ies'} found; ` +
-        `${this.contacts().filter((contact) => contact.email).length} with a published email, across ${this.pagesFetched()} pages.`);
-      if (pasted) this.pastedContent.set('');
-    } catch (error) {
-      this.notice.set('');
-      this.error.set(error instanceof Error ? error.message : 'Could not read this page. Paste its content to extract locally.');
-    } finally {
-      this.busy.set(false);
+        this.maxProfessors.set(cfg.max_professors || 40);
+      },
+      error: () => this.error.set('Cannot reach the research server. Is the backend running?'),
+    });
+    this.api.jobs(6).subscribe({ next: (j) => this.recent.set(j), error: () => {} });
+  }
+
+  toggle(label: string): void {
+    const next = new Set(this.selected());
+    if (next.has(label)) next.delete(label);
+    else next.add(label);
+    this.selected.set(next);
+  }
+
+  selectAll(on: boolean): void {
+    this.selected.set(on ? new Set(this.fields().map((f) => f.label)) : new Set());
+  }
+
+  addCustom(): void {
+    const parts = this.customInput()
+      .split(/[,，;\n]/)
+      .map((s) => s.trim())
+      .filter((s) => s && s.length <= 80);
+    const known = new Set(this.fields().map((f) => f.label.toLowerCase()));
+    const next = [...this.customFields()];
+    for (const p of parts) {
+      if (known.has(p.toLowerCase())) {
+        const label = this.fields().find((f) => f.label.toLowerCase() === p.toLowerCase())!.label;
+        this.selected.set(new Set([...this.selected(), label]));
+      } else if (!next.some((x) => x.toLowerCase() === p.toLowerCase())) {
+        next.push(p);
+      }
+    }
+    this.customFields.set(next);
+    this.customInput.set('');
+  }
+
+  removeCustom(f: string): void {
+    this.customFields.set(this.customFields().filter((x) => x !== f));
+  }
+
+  onCustomKey(ev: KeyboardEvent): void {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      this.addCustom();
     }
   }
 
-  async copyEmails(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.contacts().flatMap((contact) => contact.email ? [contact.email] : []).join('\n'));
-      this.clipboardStatus.set('Copied');
-    } catch {
-      this.clipboardStatus.set('Clipboard access is unavailable in this browser.');
-    }
-  }
-
-  downloadCsv(): void {
-    const rows = [
-      ['Name', 'Position', 'Department', 'Email', 'Verification', 'Profile URL', 'Source page', 'Notes'],
-      ...this.contacts().map((contact) => [contact.name, contact.position ?? '', contact.department ?? '', contact.email ?? '',
-        contact.verification, contact.profileUrl ?? '', contact.sourceUrl, contact.context]),
-    ];
-    const csv = rows.map((row) => row.map((value) => this.csvCell(value)).join(',')).join('\r\n');
-    const objectUrl = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = 'professor-emails.csv';
-    link.click();
-    URL.revokeObjectURL(objectUrl);
-  }
-
-  clearResults(): void {
-    this.contacts.set([]);
-    this.pageLinks.set([]);
-    this.scannedPages.set([]);
-    this.warnings.set([]);
-    this.pagesFetched.set(0);
-    this.pastedContent.set('');
-    this.notice.set('');
+  start(): void {
+    this.touched.set(true);
+    if (this.customInput().trim()) this.addCustom();
+    if (!this.canSubmit()) return;
+    this.submitting.set(true);
     this.error.set(null);
-    this.clipboardStatus.set('');
+    this.api
+      .startResearch({
+        university_url: this.url().trim(),
+        fields: [...this.selected()],
+        custom_fields: this.customFields(),
+        max_professors: this.maxProfessors(),
+        force_refresh: this.forceRefresh(),
+      })
+      .subscribe({
+        next: (r) => this.router.navigate(['/research', r.job_id, 'progress']),
+        error: (e) => {
+          this.error.set(apiError(e));
+          this.submitting.set(false);
+        },
+      });
   }
 
-  useLink(link: SourceLink): void {
-    this.url.set(link.url);
-    this.pastedContent.set('');
-    this.touched.set(false);
-  }
-
-  value(event: Event): string {
-    return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
-  }
-
-  private csvCell(value: string): string {
-    const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
-    return `"${safe.replace(/"/g, '""')}"`;
-  }
-
-  private toContact(professor: ProfessorInfo): DisplayContact {
-    const sourceUrl = professor.profileUrl ?? professor.listingUrl ?? this.url();
-    return {
-      name: professor.nameChinese && professor.name !== professor.nameChinese
-        ? `${professor.name} (${professor.nameChinese})`
-        : professor.name,
-      position: professor.position,
-      department: professor.department,
-      email: professor.email,
-      emailVerified: professor.emailVerified,
-      verification: professor.verification,
-      context: professor.notes.join(' '),
-      profileUrl: professor.profileUrl,
-      pageTitle: professor.name,
-      sourceUrl,
-    };
-  }
-
-  private resultPages(result: Awaited<ReturnType<LocalExtractor['scanSite']>>, fallbackUrl: string): SourceLink[] {
-    const pages: SourceLink[] = [{ label: result.university?.name ?? 'University homepage', url: result.university?.officialUrl ?? fallbackUrl }];
-    pages.push(...result.departments.map((department) => ({ label: department.name, url: department.url })));
-    pages.push(...result.professors
-      .filter((professor) => professor.profileUrl)
-      .map((professor) => ({ label: professor.name, url: professor.profileUrl! })));
-    return [...new Map(pages.map((page) => [page.url, page])).values()];
+  value(ev: Event): string {
+    return (ev.target as HTMLInputElement).value;
   }
 }

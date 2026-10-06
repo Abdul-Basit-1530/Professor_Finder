@@ -4,10 +4,13 @@
       <span class="brand-mark" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></span>
       <span>
         <span class="brand-name">Professor Finder</span>
-        <span class="brand-sub">Local email extraction</span>
+        <span class="brand-sub">China University Professor Research</span>
       </span>
     </a>
-    <span class="local-badge ms-auto"><i class="bi bi-shield-lock"></i> No database</span>
+    <nav class="ms-auto d-flex gap-1">
+      <a class="topnav" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><i class="bi bi-search"></i><span>New research</span></a>
+      <a class="topnav" routerLink="/settings" routerLinkActive="active"><i class="bi bi-gear"></i><span>Settings</span></a>
+    </nav>
   </div>
 </header>
 
@@ -17,6 +20,7 @@
 
 <footer class="site-footer">
   <div class="container-wide small">
-    Results exist only in this tab and are cleared when it reloads or closes. Verify contact details on the source page. © {{ year }}
+    Names and emails come only from the universities' official pages. Always check a professor's profile before
+    writing to them. © {{ year }}
   </div>
 </footer>

@@ -44,22 +44,13 @@ const BAD_HINTS = ['example.com', 'domain.com', 'xxx', 'email.com', 'yourname', 
 export function extractEmails(text: string, mailtos: string[] = []): string[] {
   const found: string[] = [];
   for (const m of text.matchAll(EMAIL_RE)) found.push(m[0]);
-  const addObfuscated = (source: string) => {
-    for (const m of source.matchAll(OBFUSCATED_RE)) {
-      const domain = m[2].replace(DOT_RE, '.').replace(/\s+/g, '');
-      if (domain.includes('.') && OBFUSCATED_TLDS.test(domain)) found.push(`${m[1]}@${domain}`);
-    }
-  };
-  addObfuscated(text);
+  for (const m of text.matchAll(OBFUSCATED_RE)) {
+    const domain = m[2].replace(DOT_RE, '.').replace(/\s+/g, '');
+    if (domain.includes('.') && OBFUSCATED_TLDS.test(domain)) found.push(`${m[1]}@${domain}`);
+  }
   for (const mt of mailtos) {
-    let addr = mt.split('?')[0].trim();
-    try {
-      addr = decodeURIComponent(addr);
-    } catch {
-      /* retain the raw address */
-    }
+    const addr = mt.split('?')[0].trim();
     if (new RegExp(`^${EMAIL_RE.source}$`).test(addr)) found.push(addr);
-    else addObfuscated(addr);
   }
   const out: string[] = [];
   for (let e of found) {

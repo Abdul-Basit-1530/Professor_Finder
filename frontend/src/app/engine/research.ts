@@ -189,14 +189,11 @@ function candidateScore(ctx: Ctx, ln: Link): [number, string[]] {
   const matches = matchFields(text, ctx.fields);
   const low = text.toLowerCase();
   const computing = COMPUTING_HINTS_EN.some((h) => low.includes(h)) || COMPUTING_HINTS_ZH.some((h) => text.includes(h));
-  const urlHint = urlHintScore(ln.url);
-  let score = 3 * matches.length + (computing ? 2 : 0) + urlHint;
+  let score = 3 * matches.length + (computing ? 2 : 0) + urlHintScore(ln.url);
   if (isSubdomainRoot(ln.url, ctx.domain)) score += 2.5;
   else if (NEWSY_PATH.test(ln.url)) score -= 3;
-  const unit = UNIT_RE.test(text);
-  if (unit) score += 1.5;
-  if (!matches.length && !computing && !urlHint) return [0, []];
-  if (!unit && (!matches.length || score < 4 || text.length > 16)) return [0, []];
+  if (UNIT_RE.test(text)) score += 1.5;
+  else if (!matches.length || score < 4 || text.length > 16) return [0, []];
   return [score, matches.map((m) => m.label)];
 }
 

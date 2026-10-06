@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import handler, { checkUrl } from './fetch.ts';
+import { GET, checkUrl } from './fetch.ts';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -30,22 +30,12 @@ test('rejects IPs, ports, credentials and other schemes', () => {
 test('returns the page bytes with final URL and upstream status', async () => {
   globalThis.fetch = (async () =>
     new Response('<html>计算机学院</html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch;
-  const res = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
+  const res = await GET(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('x-final-url'), 'https://www.pku.edu.cn/');
   assert.equal(res.headers.get('x-upstream-status'), '200');
   assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.match(await res.text(), /计算机学院/);
-});
-
-test('serves the documented Vercel Web Standard handler', async () => {
-  globalThis.fetch = (async () =>
-    new Response('<title>CSU</title>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch;
-  const response = await handler.fetch(new Request('https://app.test/api/fetch?url=https%3A%2F%2Fen.csu.edu.cn%2F'));
-
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get('x-final-url'), 'https://en.csu.edu.cn/');
-  assert.match(await response.text(), /CSU/);
 });
 
 test('follows allowed redirects and blocks redirects to other hosts', async () => {
@@ -55,9 +45,9 @@ test('follows allowed redirects and blocks redirects to other hosts', async () =
     'https://www.zju.edu.cn/': new Response(null, { status: 301, headers: { location: 'http://169.254.169.254/' } }),
   };
   globalThis.fetch = (async (input: string | URL | Request) => hops[String(input)]) as typeof fetch;
-  const ok = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
+  const ok = await GET(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
   assert.equal(ok.headers.get('x-final-url'), 'https://www.pku.edu.cn/en/');
-  const blocked = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.zju.edu.cn/'));
+  const blocked = await GET(new Request('https://app.test/api/fetch?url=https://www.zju.edu.cn/'));
   assert.equal(blocked.status, 400);
   assert.match(await blocked.text(), /redirect blocked/);
 });
@@ -65,12 +55,12 @@ test('follows allowed redirects and blocks redirects to other hosts', async () =
 test('refuses binary content and passes through upstream errors as status', async () => {
   globalThis.fetch = (async () =>
     new Response('PK..', { status: 200, headers: { 'content-type': 'application/zip' } })) as typeof fetch;
-  const res = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/a.zip'));
+  const res = await GET(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/a.zip'));
   assert.equal(res.status, 415);
 
   globalThis.fetch = (async () =>
     new Response('nope', { status: 404, headers: { 'content-type': 'text/html' } })) as typeof fetch;
-  const missing = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/x'));
+  const missing = await GET(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/x'));
   assert.equal(missing.status, 200);
   assert.equal(missing.headers.get('x-upstream-status'), '404');
 });
@@ -79,6 +69,6 @@ test('network failure becomes a 502 instead of crashing', async () => {
   globalThis.fetch = (async () => {
     throw new TypeError('fetch failed');
   }) as typeof fetch;
-  const res = await handler.fetch(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
+  const res = await GET(new Request('https://app.test/api/fetch?url=https://www.pku.edu.cn/'));
   assert.equal(res.status, 502);
 });
